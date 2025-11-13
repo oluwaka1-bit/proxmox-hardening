@@ -1,0 +1,2 @@
+# Ignore large ARF XML SCAP result files
+results/*.arf.xml
