@@ -1,0 +1,20 @@
+---
+# Role: scap_build
+# Purpose: Make sure the SCAP datastream was built on the SCAP builder VM.
+
+- name: Check SCAP datastream exists on controller
+  delegate_to: localhost
+  become: false
+  stat:
+    path: "{{ scap_datastream_src | default('/opt/stig/ssg-debian13-ds.xml') }}"
+  register: scap_ds
+
+- name: Fail if SCAP datastream is missing
+  delegate_to: localhost
+  become: false
+  fail:
+    msg: >
+      SCAP datastream not found at
+      {{ scap_datastream_src | default('/opt/stig/ssg-debian13-ds.xml') }}.
+      Build it first on the SCAP builder (oscap info should succeed there).
+  when: not scap_ds.stat.exists

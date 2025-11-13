@@ -1,0 +1,48 @@
+---
+# Build or update SCAP content on the Ubuntu VM (SCAP builder/controller)
+- name: Ensure SCAP workspace exists
+  ansible.builtin.file:
+    path: /opt/stig
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Clone or update ComplianceAsCode/content repo
+  ansible.builtin.git:
+    repo: "https://github.com/ComplianceAsCode/content.git"
+    dest: /opt/stig/content
+    version: master
+    force: yes
+
+- name: Ensure build directory exists
+  ansible.builtin.file:
+    path: /opt/stig/content/build
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Configure SCAP build (cmake)
+  ansible.builtin.command:
+    cmd: cmake ..
+    chdir: /opt/stig/content/build
+  register: cmake_out
+  changed_when: cmake_out.rc == 0
+
+- name: Build SCAP content
+  ansible.builtin.command:
+    cmd: make -j4
+    chdir: /opt/stig/content/build
+  register: make_out
+  changed_when: make_out.rc == 0
+
+- name: Ensure Debian 13 DS file exists
+  ansible.builtin.stat:
+    path: /opt/stig/content/build/ssg-debian13-ds.xml
+  register: deb13_ds
+
+- name: Fail if Debian 13 SCAP datastream not found
+  ansible.builtin.fail:
+    msg: "Debian 13 SCAP datastream not found at /opt/stig/content/build/ssg-debian13-ds.xml"
+  when: not deb13_ds.stat.exists

@@ -1,0 +1,25 @@
+---
+# Role: scap_scan
+# Purpose: Run SCAP scan ("before" or "after") on Proxmox nodes.
+
+- name: Ensure SCAP log directory exists on node
+  file:
+    path: /var/log/scap
+    state: directory
+    mode: '0755'
+
+- name: Run SCAP {{ scap_phase }} scan on node
+  command: >
+    oscap xccdf eval
+    --fetch-remote-resources
+    --profile "{{ scap_profile }}"
+    --results-arf "/var/log/scap/stig-{{ scap_phase }}.arf.xml"
+    --report "/var/log/scap/stig-{{ scap_phase }}.html"
+    "{{ scap_ds_path }}"
+  register: scap_scan_result
+  changed_when: false
+  failed_when: scap_scan_result.rc not in [0, 2]
+
+- name: Show SCAP {{ scap_phase }} scan return code
+  debug:
+    msg: "SCAP {{ scap_phase }} scan rc={{ scap_scan_result.rc }}"
