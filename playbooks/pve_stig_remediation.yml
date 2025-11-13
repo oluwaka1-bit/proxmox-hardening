@@ -1,0 +1,7 @@
+---
+- name: Proxmox VE 9 / Debian 13 - Targeted STIG-ish Remediation
+  hosts: pve
+  become: yes
+
+  roles:
+    - pve_stig

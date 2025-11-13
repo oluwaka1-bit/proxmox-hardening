@@ -1,0 +1,26 @@
+---
+# Play 1: Build/Update SCAP content on the Ubuntu builder (localhost)
+- name: Build/Update SCAP content on SCAP builder
+  hosts: scap_builder
+  become: yes
+  roles:
+    - scap_build
+
+# Play 2: Sync SCAP, pre-scan, remediate, post-scan on Proxmox nodes
+- name: Run SCAP scan and remediation on Proxmox nodes
+  hosts: pve
+  become: yes
+  vars:
+    scap_profile: "xccdf_org.ssgproject.content_profile_standard"
+    scap_ds_path: "/opt/stig/ssg-debian13-ds.xml"
+
+  roles:
+    - role: scap_scan
+      vars:
+        scap_phase: "before"
+
+    - role: pve_stig
+
+    - role: scap_scan
+      vars:
+        scap_phase: "after"

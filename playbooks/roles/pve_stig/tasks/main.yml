@@ -1,0 +1,28 @@
+---
+# Role: pve_stig
+# Purpose: Run Proxmox-aware STIG remediation script on the node.
+
+- name: Detect PVE STIG remediation script
+  stat:
+    path: "{{ pve_stig_remediation_script | default('/opt/stig/stig-remediate-pve.sh') }}"
+  register: pve_stig_script
+
+- name: Fail if remediation script is missing
+  fail:
+    msg: >
+      PVE STIG remediation script not found at
+      {{ pve_stig_remediation_script | default('/opt/stig/stig-remediate-pve.sh') }}.
+      Copy the script to each PVE node or set 'pve_stig_remediation_script'
+      to the correct path.
+  when: not pve_stig_script.stat.exists
+
+- name: Run Proxmox STIG remediation script
+  command: >
+    bash "{{ pve_stig_remediation_script | default('/opt/stig/stig-remediate-pve.sh') }}"
+  register: pve_stig_remediate
+  changed_when: true
+
+- name: Show remediation stdout (first lines)
+  debug:
+    msg: "{{ pve_stig_remediate.stdout.split('\n')[0:10] }}"
+  when: pve_stig_remediate.stdout is defined

@@ -1,0 +1,31 @@
+---
+# Expect vars:
+#  - scap_profile       (e.g. xccdf_org.ssgproject.content_profile_standard)
+#  - scap_ds_path       (on target, e.g. /opt/stig/ssg-debian13-ds.xml)
+#  - scap_phase         ("before" or "after")
+
+- name: Ensure SCAP directory exists on target
+  ansible.builtin.file:
+    path: /opt/stig
+    state: directory
+    mode: '0755'
+
+- name: Copy SCAP datastream from controller to target
+  ansible.builtin.copy:
+    src: /opt/stig/content/build/ssg-debian13-ds.xml
+    dest: "{{ scap_ds_path }}"
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Run SCAP evaluation ({{ scap_phase }} remediation)
+  ansible.builtin.command:
+    cmd: >
+      oscap xccdf eval
+      --fetch-remote-resources
+      --profile {{ scap_profile }}
+      --results /var/log/stig-{{ scap_phase }}.xml
+      --report /var/log/stig-{{ scap_phase }}.html
+      {{ scap_ds_path }}
+  register: oscap_eval
+  changed_when: false

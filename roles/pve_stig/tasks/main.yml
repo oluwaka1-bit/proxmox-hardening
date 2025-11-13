@@ -1,0 +1,102 @@
+---
+- name: Set SSH and sysctl defaults for PVE hardening
+  ansible.builtin.set_fact:
+    pve_ssh_config_path: "/etc/ssh/sshd_config"
+    pve_ssh_client_alive_interval: 300
+    pve_ssh_client_alive_count_max: 1
+    pve_sysctl_file: "/etc/sysctl.d/99-pve-hardening.conf"
+
+#########################################################
+# SSH Hardening (safe subset)
+#########################################################
+
+- name: Ensure SSH uses Protocol 2
+  ansible.builtin.lineinfile:
+    path: "{{ pve_ssh_config_path }}"
+    regexp: '^[ \t]*Protocol[ \t]+'
+    line: 'Protocol 2'
+    state: present
+    create: no
+    backrefs: no
+  notify: restart ssh
+
+- name: Ensure ClientAliveInterval is set
+  ansible.builtin.lineinfile:
+    path: "{{ pve_ssh_config_path }}"
+    regexp: '^[ \t]*ClientAliveInterval[ \t]+'
+    line: "ClientAliveInterval {{ pve_ssh_client_alive_interval }}"
+    state: present
+    create: no
+    backrefs: no
+  notify: restart ssh
+
+- name: Ensure ClientAliveCountMax is set
+  ansible.builtin.lineinfile:
+    path: "{{ pve_ssh_config_path }}"
+    regexp: '^[ \t]*ClientAliveCountMax[ \t]+'
+    line: "ClientAliveCountMax {{ pve_ssh_client_alive_count_max }}"
+    state: present
+    create: no
+    backrefs: no
+  notify: restart ssh
+
+# NOTE: We explicitly DO NOT change PermitRootLogin here,
+# per the requirement to ignore that SCAP rule.
+
+#########################################################
+# Kernel: Disable core dumps for SUID programs
+#########################################################
+
+- name: Ensure fs.suid_dumpable is set to 0 in sysctl config
+  ansible.builtin.blockinfile:
+    path: "{{ pve_sysctl_file }}"
+    create: yes
+    owner: root
+    group: root
+    mode: '0644'
+    block: |
+      # Harden SUID core dump behavior
+      fs.suid_dumpable = 0
+
+- name: Apply fs.suid_dumpable sysctl setting immediately
+  ansible.builtin.sysctl:
+    name: fs.suid_dumpable
+    value: '0'
+    state: present
+    reload: yes
+    sysctl_file: "{{ pve_sysctl_file }}"
+
+#########################################################
+# Filesystem: System.map permissions
+#########################################################
+
+- name: Find System.map files
+  ansible.builtin.find:
+    paths: /boot
+    patterns: 'System.map-*'
+    file_type: file
+  register: systemmap_files
+
+- name: Ensure System.map files have mode 0644
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    mode: '0644'
+  loop: "{{ systemmap_files.files }}"
+  when: systemmap_files.matched | int > 0
+
+#########################################################
+# Audit subsystem
+#########################################################
+
+- name: Ensure auditd packages are installed
+  ansible.builtin.package:
+    name:
+      - auditd
+      - audispd-plugins
+    state: present
+
+- name: Ensure auditd service is enabled and running
+  ansible.builtin.service:
+    name: auditd
+    enabled: yes
+    state: started
